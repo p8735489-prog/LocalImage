@@ -1,0 +1,9 @@
+#version 450
+layout(local_size_x=64) in;
+layout(set=0,binding=0,std430) readonly buffer X0{float x0[];};
+layout(set=0,binding=1,std430) readonly buffer X1{float x1[];};
+layout(set=0,binding=2,std430) readonly buffer X2{float x2[];};
+layout(set=0,binding=3,std430) readonly buffer X3{float x3[];};
+layout(set=0,binding=4,std430) writeonly buffer Y{float y[];};
+layout(push_constant, std430) uniform P{uint axis;uint rank;uint outDims[4];uint a0;uint a1;uint a2;uint a3;}p;
+void main(){uint oi=gl_GlobalInvocationID.x;uint total=1;for(uint i=0;i<p.rank;i++)total*=p.outDims[i];if(oi>=total)return;uint t=oi,coord[4];for(uint j=0;j<4;j++)coord[j]=0;for(uint j=0;j<4;j++){if(j<p.rank){uint q=p.rank-1-j;coord[q]=t%p.outDims[q];t/=p.outDims[q];}}uint sizes[4]=uint[4](p.a0,p.a1,p.a2,p.a3);uint prefix=0,which=0,local=coord[p.axis];for(uint k=0;k<4;k++){if(local>=prefix+sizes[k]){prefix+=sizes[k];which++;}}uint c=local-prefix;uint idx=0,mul=1;for(uint j=0;j<4;j++){if(j<p.rank){uint q=p.rank-1-j;uint dim=(q==p.axis)?sizes[which]:p.outDims[q];idx+=coord[q]*mul;mul*=dim;}}if(which==0)y[oi]=x0[idx];else if(which==1)y[oi]=x1[idx];else if(which==2)y[oi]=x2[idx];else y[oi]=x3[idx];}

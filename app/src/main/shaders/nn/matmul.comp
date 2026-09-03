@@ -1,0 +1,8 @@
+#version 450
+layout(local_size_x=16, local_size_y=16, local_size_z=1) in;
+layout(set=0,binding=0,std430) readonly buffer A { float a[]; };
+layout(set=0,binding=1,std430) readonly buffer B { float b[]; };
+layout(set=0,binding=2,std430) writeonly buffer C { float c[]; };
+layout(set=0,binding=3,std430) readonly buffer Bias { float bias[]; };
+layout(push_constant) uniform P { uint M; uint K; uint N; uint batch; uint hasBias; } p;
+void main(){ uint col=gl_GlobalInvocationID.x,row=gl_GlobalInvocationID.y,bb=gl_GlobalInvocationID.z; if(row>=p.M||col>=p.N||bb>=p.batch)return; uint ao=bb*p.M*p.K,bo=bb*p.K*p.N,co=bb*p.M*p.N; float s=0.0; for(uint k=0;k<p.K;k++)s+=a[ao+row*p.K+k]*b[bo+k*p.N+col]; c[co+row*p.N+col]=s+(p.hasBias!=0?bias[col]:0.0); }

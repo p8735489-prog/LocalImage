@@ -1,0 +1,14 @@
+#include "transformer_runtime.h"
+#include "../operators/cpu_operators.h"
+#include <cmath>
+#include <limits>
+namespace localimage::transformer {
+using namespace localimage::tensor;
+static bool f32(const Tensor&t,std::string&e){if(!t.valid()||t.dtype()!=TensorDType::F32||!t.isContiguous()){e="transformer requires contiguous F32 tensors";return false;}return true;}
+bool rmsNorm(const Tensor&x,const Tensor&w,double eps,Tensor&o,std::string&e){if(!f32(x,e)||!f32(w,e)||eps<=0||x.shape().rank()==0||w.shape().rank()!=1||w.shape().dim(0)!=x.shape().dim(x.shape().rank()-1)){e="RMSNorm shape mismatch";return false;}TensorRuntime rt;o=rt.createTensor(x.shape(),TensorDType::F32,e);if(!o.valid())return false;size_t n=w.shape().dim(0),rows=x.shape().elementCount()/n;auto*X=(const float*)x.data();auto*W=(const float*)w.data();auto*O=(float*)o.mutableData();for(size_t r=0;r<rows;r++){double ss=0;for(size_t j=0;j<n;j++)ss+=(double)X[r*n+j]*X[r*n+j];double inv=1/std::sqrt(ss/n+eps);for(size_t j=0;j<n;j++)O[r*n+j]=(float)(X[r*n+j]*inv*W[j]);}return true;}
+bool linear(const Tensor&x,const Tensor&w,const Tensor*b,Tensor&o,std::string&e){return localimage::ops::linear(x,w,b,o,e);}
+bool gelu(const Tensor&x,Tensor&o,std::string&e){if(!f32(x,e))return false;TensorRuntime rt;o=rt.createTensor(x.shape(),TensorDType::F32,e);if(!o.valid())return false;auto*X=(const float*)x.data();auto*O=(float*)o.mutableData();for(uint64_t i=0;i<x.shape().elementCount();++i){double v=X[i];O[i]=(float)(0.5*v*(1+std::erf(v/std::sqrt(2.0))));}return true;}
+bool selfAttention(const Tensor&q,const Tensor&k,const Tensor&v,double scale,const Tensor*mask,Tensor&o,std::string&e){return localimage::ops::scaledDotProductAttention(q,k,v,scale,mask,o,e);}
+bool crossAttention(const Tensor&q,const Tensor&context,const Tensor&value,double scale,const Tensor*mask,Tensor&o,std::string&e){return localimage::ops::scaledDotProductAttention(q,context,value,scale,mask,o,e);}
+bool rope(const Tensor&x,const Tensor&freq,Tensor&o,std::string&e){if(!f32(x,e)||!f32(freq,e)||x.shape().rank()!=3||freq.shape().rank()!=2||x.shape().dim(0)!=freq.shape().dim(0)||freq.shape().dim(1)*2>x.shape().dim(2)){e="RoPE shape mismatch";return false;}TensorRuntime rt;o=rt.createTensor(x.shape(),TensorDType::F32,e);if(!o.valid())return false;auto*X=(const float*)x.data();auto*F=(const float*)freq.data();auto*O=(float*)o.mutableData();size_t B=x.shape().dim(0),S=x.shape().dim(1),D=x.shape().dim(2),H=freq.shape().dim(1);for(size_t b=0;b<B;b++)for(size_t s=0;s<S;s++)for(size_t d=0;d<D;d+=2){size_t h=d/2;if(h>=H){O[(b*S+s)*D+d]=X[(b*S+s)*D+d];if(d+1<D)O[(b*S+s)*D+d+1]=X[(b*S+s)*D+d+1];continue;}double a=F[b*H+h],c=std::cos(a),sn=std::sin(a);double p=X[(b*S+s)*D+d],r=d+1<D?X[(b*S+s)*D+d+1]:0;O[(b*S+s)*D+d]=(float)(p*c-r*sn);if(d+1<D)O[(b*S+s)*D+d+1]=(float)(p*sn+r*c);}return true;}
+}

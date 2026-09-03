@@ -1,0 +1,7 @@
+#version 450
+layout(local_size_x=64) in;
+layout(set=0,binding=0,std430) readonly buffer Q{float q[];};layout(set=0,binding=1,std430) readonly buffer K{float k[];};layout(set=0,binding=2,std430) readonly buffer V{float v[];};layout(set=0,binding=3,std430) readonly buffer M{float m[];};layout(set=0,binding=4,std430) writeonly buffer O{float o[];};
+layout(push_constant) uniform P{uint B;uint H;uint Qn;uint Kn;uint D;uint Vd;float scale;uint hasMask;}p;
+shared float maxs[64]; shared float sums[64];
+float dotScore(uint b,uint h,uint qi,uint ki){float s=0;for(uint d=0;d<p.D;d++)s+=q[((b*p.H+h)*p.Qn+qi)*p.D+d]*k[((b*p.H+h)*p.Kn+ki)*p.D+d];s*=p.scale;if(p.hasMask!=0)s+=m[((b*p.H+h)*p.Qn+qi)*p.Kn+ki];return s;}
+void main(){uint row=gl_WorkGroupID.x,l=gl_LocalInvocationID.x;uint total=p.B*p.H*p.Qn;if(row>=total)return;uint qi=row%p.Qn,t=row/p.Qn,h=t%p.H,b=t/p.H;float mx=-3.402823e38;for(uint ki=l;ki<p.Kn;ki+=64)mx=max(mx,dotScore(b,h,qi,ki));maxs[l]=mx;barrier();for(uint off=32;off>0;off>>=1){if(l<off)maxs[l]=max(maxs[l],maxs[l+off]);barrier();}mx=maxs[0];float sum=0;for(uint ki=l;ki<p.Kn;ki+=64)sum+=exp(dotScore(b,h,qi,ki)-mx);sums[l]=sum;barrier();for(uint off=32;off>0;off>>=1){if(l<off)sums[l]+=sums[l+off];barrier();}sum=sums[0];for(uint vi=l;vi<p.Vd;vi+=64){float acc=0;for(uint ki=0;ki<p.Kn;ki++)acc+=exp(dotScore(b,h,qi,ki)-mx)/sum*v[((b*p.H+h)*p.Kn+ki)*p.Vd+vi];o[((b*p.H+h)*p.Qn+qi)*p.Vd+vi]=acc;}}

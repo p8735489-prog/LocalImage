@@ -1,0 +1,5 @@
+#version 450
+layout(local_size_x=64) in;
+layout(set=0,binding=0,std430) readonly buffer X{float x[];};layout(set=0,binding=1,std430) readonly buffer G{float g[];};layout(set=0,binding=2,std430) readonly buffer B{float b[];};layout(set=0,binding=3,std430) writeonly buffer Y{float y[];};
+layout(push_constant) uniform P{uint N;uint C;uint H;uint W;uint groups;float eps;uint hasBias;}p;shared float sm[64];
+void main(){uint group=gl_WorkGroupID.x,l=gl_LocalInvocationID.x;uint cpg=p.C/p.groups;if(group>=p.N*p.groups)return;uint n=group/p.groups,gid=group%p.groups;uint count=cpg*p.H*p.W,base=(n*p.C+gid*cpg)*p.H*p.W;float s=0;for(uint i=l;i<count;i+=64)s+=x[base+i];sm[l]=s;barrier();for(uint q=32;q>0;q>>=1){if(l<q)sm[l]+=sm[l+q];barrier();}float mean=sm[0]/float(count);float vv=0;for(uint i=l;i<count;i+=64){float z=x[base+i]-mean;vv+=z*z;}sm[l]=vv;barrier();for(uint q=32;q>0;q>>=1){if(l<q)sm[l]+=sm[l+q];barrier();}float inv=inversesqrt(sm[0]/float(count)+p.eps);for(uint i=l;i<count;i+=64){uint cc=i/(p.H*p.W),dst=base+i;y[dst]=(x[dst]-mean)*inv*g[gid*cpg+cc]+(p.hasBias!=0?b[gid*cpg+cc]:0);}}

@@ -1,0 +1,9 @@
+#version 450
+layout(local_size_x=64,local_size_y=1,local_size_z=1) in;
+layout(set=0,binding=0,std430) readonly buffer X{float x[];};
+layout(set=0,binding=1,std430) readonly buffer G{float g[];};
+layout(set=0,binding=2,std430) readonly buffer B{float b[];};
+layout(set=0,binding=3,std430) writeonly buffer Y{float y[];};
+layout(push_constant) uniform P{uint rows;uint n;float eps;uint hasBias;}p;
+shared float sm[64];
+void main(){uint r=gl_WorkGroupID.x,l=gl_LocalInvocationID.x;if(r>=p.rows)return;float s=0;for(uint j=l;j<p.n;j+=64)s+=x[r*p.n+j];sm[l]=s;barrier();for(uint q=32;q>0;q>>=1){if(l<q)sm[l]+=sm[l+q];barrier();}float mean=sm[0]/float(p.n);float v=0;for(uint j=l;j<p.n;j+=64){float z=x[r*p.n+j]-mean;v+=z*z;}sm[l]=v;barrier();for(uint q=32;q>0;q>>=1){if(l<q)sm[l]+=sm[l+q];barrier();}float inv=inversesqrt(sm[0]/float(p.n)+p.eps);for(uint j=l;j<p.n;j+=64)y[r*p.n+j]=(x[r*p.n+j]-mean)*inv*g[j]+(p.hasBias!=0?b[j]:0);}

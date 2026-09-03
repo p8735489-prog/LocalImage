@@ -1,0 +1,26 @@
+name: Runtime Checks
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject unfinished native implementations
+        shell: bash
+        run: |
+          ! grep -RniE 'TODO|FIXME|not implemented|placeholder|fake|dummy|UnsupportedOperationException'             app/src/main/cpp
+      - name: Verify required build files
+        shell: bash
+        run: |
+          test -f app/build.gradle.kts
+          test -f app/src/main/cpp/CMakeLists.txt
+          test -f app/src/main/AndroidManifest.xml
+          test -f gradlew
+          test -f gradlew.bat
+          test -f gradle/wrapper/gradle-wrapper.properties

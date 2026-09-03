@@ -1,0 +1,5 @@
+#version 450
+layout(local_size_x=64) in;
+layout(set=0,binding=0,std430) readonly buffer X{float x[];};layout(set=0,binding=1,std430) readonly buffer G{float g[];};layout(set=0,binding=2,std430) writeonly buffer Y{float y[];};
+layout(push_constant) uniform P{uint rows;uint n;float eps;}p;shared float sm[64];
+void main(){uint r=gl_WorkGroupID.x,l=gl_LocalInvocationID.x;if(r>=p.rows)return;float s=0;for(uint j=l;j<p.n;j+=64){float z=x[r*p.n+j];s+=z*z;}sm[l]=s;barrier();for(uint q=32;q>0;q>>=1){if(l<q)sm[l]+=sm[l+q];barrier();}float inv=inversesqrt(sm[0]/float(p.n)+p.eps);for(uint j=l;j<p.n;j+=64)y[r*p.n+j]=x[r*p.n+j]*inv*g[j];}

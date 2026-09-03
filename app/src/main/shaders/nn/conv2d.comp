@@ -1,0 +1,5 @@
+#version 450
+layout(local_size_x=8,local_size_y=8,local_size_z=1) in;
+layout(set=0,binding=0,std430) readonly buffer X{float x[];};layout(set=0,binding=1,std430) readonly buffer W{float w[];};layout(set=0,binding=2,std430) readonly buffer B{float b[];};layout(set=0,binding=3,std430) writeonly buffer Y{float y[];};
+layout(push_constant) uniform P{uint N;uint Cin;uint H;uint Wd;uint Cout;uint KH;uint KW;uint OH;uint OW;uint stride;uint pad;uint dilation;uint groups;uint hasBias;}p;
+void main(){uint ow=gl_GlobalInvocationID.x,oh=gl_GlobalInvocationID.y,ocn=gl_GlobalInvocationID.z;if(ow>=p.OW||oh>=p.OH)return;uint n=ocn/p.Cout,oc=ocn%p.Cout;if(n>=p.N)return;uint cpg=p.Cin/p.groups,opg=p.Cout/p.groups,gid=oc/opg,ci0=gid*cpg;float s=p.hasBias!=0?b[oc]:0;for(uint ci=0;ci<cpg;ci++)for(uint kh=0;kh<p.KH;kh++)for(uint kw=0;kw<p.KW;kw++){int ih=int(oh*p.stride+kh*p.dilation)-int(p.pad),iw=int(ow*p.stride+kw*p.dilation)-int(p.pad);if(ih<0||iw<0||ih>=int(p.H)||iw>=int(p.Wd))continue;uint ic=ci0+ci;s+=x[((n*p.Cin+ic)*p.H+uint(ih))*p.Wd+uint(iw)]*w[((oc*cpg+ci)*p.KH+kh)*p.KW+kw];}y[((n*p.Cout+oc)*p.OH+oh)*p.OW+ow]=s;}

@@ -1,0 +1,6 @@
+#version 450
+layout(local_size_x=64) in;
+layout(set=0,binding=0,std430) readonly buffer X{float x[];};
+layout(set=0,binding=1,std430) writeonly buffer Y{float y[];};
+layout(push_constant, std430) uniform P{uint N;uint C;uint H;uint W;uint scale;}p;
+void main(){uint oi=gl_GlobalInvocationID.x;uint total=p.N*p.C*p.H*p.W*p.scale*p.scale;if(oi>=total)return;uint ow=p.W*p.scale,oh=p.H*p.scale, t=oi;uint w=t%ow;t/=ow;uint h=t%oh;t/=oh;uint c=t%p.C;t/=p.C;uint n=t;uint iw=w/p.scale,ih=h/p.scale;uint ii=((n*p.C+c)*p.H+ih)*p.W+iw;y[oi]=x[ii];}
