@@ -1,0 +1,6 @@
+LocalImage Android CI
+- Every push to main builds debug and release-unsigned APKs.
+- APKs are uploaded as GitHub Actions artifacts.
+- Every successful main push updates the prerelease named continuous.
+- Tags matching v* create a GitHub Release with the APKs and SHA256SUMS.txt.
+- A release-signing keystore is intentionally not stored in the repository.

@@ -15,41 +15,106 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Install Android toolchain
         shell: bash
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.14206865" "cmake;3.22.1"
-      - uses: gradle/actions/setup-gradle@v4
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;29.0.14206865" \
+            "cmake;3.22.1"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.5.0'
-      - name: Build release APK
-        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Verify project
+        shell: bash
+        run: |
+          test -f app/build.gradle.kts
+          test -f app/src/main/cpp/CMakeLists.txt
+          test -f app/src/main/AndroidManifest.xml
+          test -f gradlew
+          test -f gradlew.bat
+          test -f gradle/wrapper/gradle-wrapper.properties
+          test -f app/src/main/res/drawable/localimage_icon.png
+
       - name: Build debug APK
-        run: gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Build release APK
+        run: gradle --no-daemon --stacktrace :app:assembleRelease
+
       - name: Collect APKs
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-release-unsigned.apk dist/LocalImage-release-unsigned.apk
           cp app/build/outputs/apk/debug/app-debug.apk dist/LocalImage-debug.apk
+          cp app/build/outputs/apk/release/app-release-unsigned.apk dist/LocalImage-release-unsigned.apk
           sha256sum dist/*.apk > dist/SHA256SUMS.txt
-      - uses: actions/upload-artifact@v4
+          ls -lh dist
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: LocalImage-APKs
-          path: dist/*
+          name: LocalImage-APKs-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish/update continuous release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view continuous >/dev/null 2>&1; then
+            gh release upload continuous \
+              dist/LocalImage-debug.apk \
+              dist/LocalImage-release-unsigned.apk \
+              dist/SHA256SUMS.txt \
+              --clobber
+            gh release edit continuous \
+              --title "LocalImage Continuous Build" \
+              --prerelease
+          else
+            gh release create continuous \
+              dist/LocalImage-debug.apk \
+              dist/LocalImage-release-unsigned.apk \
+              dist/SHA256SUMS.txt \
+              --title "LocalImage Continuous Build" \
+              --notes "Latest successful main-branch Android build." \
+              --prerelease \
+              --target "${GITHUB_SHA}"
+          fi
+
       - name: Publish tagged release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          files: |
-            dist/LocalImage-release-unsigned.apk
-            dist/LocalImage-debug.apk
-            dist/SHA256SUMS.txt
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            dist/LocalImage-debug.apk \
+            dist/LocalImage-release-unsigned.apk \
+            dist/SHA256SUMS.txt \
+            --title "LocalImage ${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --target "${GITHUB_SHA}"
