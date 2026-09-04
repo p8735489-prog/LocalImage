@@ -14,7 +14,7 @@ Android 本地 Neural Runtime / AI 绘画项目。
 
 ## Android 构建
 
-AGP 9.3.0 / Gradle 9.5.0 / Kotlin 2.3.21 / compileSdk 36 / minSdk 29 / NDK 29.0.14206865 / CMake 3.22.1 / arm64-v8a。
+AGP 9.3.0 / Gradle 9.4.1 / Kotlin 2.3.21 / compileSdk 36 / minSdk 29 / NDK 29.0.14206865 / CMake 3.22.1 / arm64-v8a。
 
 ```bash
 ./gradlew assembleDebug
