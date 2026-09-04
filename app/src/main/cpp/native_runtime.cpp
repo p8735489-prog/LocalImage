@@ -24,6 +24,7 @@
 #include "tensor/tensor.h"
 #include "models/model_detector.h"
 #include "runtime/resolution_policy.h"
+#include "npu/npu_backend.h"
 
 using localimage::safetensors::SafeTensorFile;
 using localimage::safetensors::TensorInfo;
@@ -396,5 +397,56 @@ Java_com_haobai_localimage_NativeRuntime_nativeResolveResolution(
        << ";memoryLimited=" << (r.memory_limited ? "true" : "false")
        << ";reason=" << localimage::runtime::resolutionReasonName(r.reason);
     if (!r.warning.empty()) os << ";warning=" << r.warning;
+    return env->NewStringUTF(os.str().c_str());
+}
+
+// ============================================================================
+// NPU / Hexagon DSP detection
+// ============================================================================
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_haobai_localimage_NativeRuntime_nativeGetNpuInfo(JNIEnv* env, jclass) {
+    using localimage::npu::BackendProbe;
+    using localimage::npu::Capabilities;
+
+    Capabilities caps = BackendProbe::detect();
+
+    std::ostringstream os;
+    os << "SoC 型号: " << caps.socName << "\n";
+    os << "DSP 版本: " << BackendProbe::dspVersionName(caps.dspVersion) << "\n";
+    os << "后端类型: " << BackendProbe::backendName(caps.backend) << "\n";
+    os << "设备: " << caps.device << "\n";
+    os << "NPU 可用: " << (caps.available ? "是" : "否") << "\n";
+
+    if (caps.totalMemoryBytes > 0) {
+        const char* units[] = {"B", "KB", "MB", "GB"};
+        double mem = static_cast<double>(caps.totalMemoryBytes);
+        int ui = 0;
+        while (mem >= 1024 && ui < 3) { mem /= 1024; ui++; }
+        os << "NPU 显存: " << std::fixed << std::setprecision(2) << mem << " " << units[ui] << "\n";
+    }
+
+    if (!caps.supportedOps.empty()) {
+        os << "\n支持的算子 (" << caps.supportedOps.size() << " 种):\n";
+        for (size_t i = 0; i < caps.supportedOps.size(); ++i) {
+            if (i > 0) os << ", ";
+            if (i > 0 && i % 6 == 0) os << "\n";
+            os << caps.supportedOps[i];
+        }
+        os << "\n";
+    }
+
+    if (!caps.errorMessage.empty()) {
+        os << "\n详细信息: " << caps.errorMessage << "\n";
+    }
+
+    if (!caps.available) {
+        os << "\n最低要求: Snapdragon 8 Gen3 (Hexagon DSP v75)\n";
+        os << "当前设备不满足 NPU 加速要求，将使用 Vulkan GPU / CPU 回退。";
+    } else {
+        os << "\n✓ NPU 加速已启用 (QNN HTP Backend)\n";
+        os << "算子将优先在 Hexagon DSP 上执行，不支持的自动回退到 GPU/CPU。";
+    }
+
     return env->NewStringUTF(os.str().c_str());
 }

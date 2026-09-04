@@ -38,6 +38,11 @@ add_library(localimage_runtime SHARED
     transformer/transformer_runtime.cpp
     converter/safetensors_to_limodel.cpp
     npu/npu_backend.cpp
+    npu/qnn/qnn_types.cpp
+    npu/qnn/qnn_context.cpp
+    npu/qnn/qnn_tensor.cpp
+    npu/qnn/qnn_op_map.cpp
+    npu/qnn/qnn_graph_executor.cpp
     sdxl/sdxl_runtime.cpp
     tokenizer/bpe_tokenizer.cpp
     image/png_writer.cpp
@@ -95,4 +100,54 @@ if(LOCALIMAGE_GLSLC)
     target_include_directories(localimage_runtime PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_BINARY_DIR}/vulkan ${CMAKE_CURRENT_BINARY_DIR}/vulkan/generated)
 else()
     message(STATUS "LocalImage: glslc not found; neural Vulkan shader binaries will remain explicitly unavailable until generated.")
+endif()
+
+# ============================================================================
+# NPU / QNN (Qualcomm Hexagon DSP) backend
+# ============================================================================
+#
+# Enable with: -DLOCALIMAGE_QNN=ON -DQNN_SDK_ROOT=/path/to/qnn/sdk
+#
+# The NPU code is always compiled in (stubbed when SDK unavailable).
+# Define LOCALIMAGE_NO_NPU to completely exclude NPU code (reduces binary size).
+#
+# Minimum target: Snapdragon 8 Gen3 (Hexagon DSP v75)
+# ============================================================================
+
+option(LOCALIMAGE_QNN "Enable Qualcomm QNN HTP NPU backend" OFF)
+option(LOCALIMAGE_NO_NPU "Exclude all NPU code from build" OFF)
+
+if(LOCALIMAGE_NO_NPU)
+    target_compile_definitions(localimage_runtime PRIVATE LOCALIMAGE_NO_NPU)
+    message(STATUS "LocalImage: NPU backend excluded from build (LOCALIMAGE_NO_NPU)")
+else()
+    if(LOCALIMAGE_QNN)
+        if(NOT QNN_SDK_ROOT)
+            # Try common default locations
+            set(QNN_SDK_ROOT "$ENV{QNN_SDK_ROOT}")
+            if(NOT QNN_SDK_ROOT)
+                set(QNN_SDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../../qnn_sdk")
+            endif()
+        endif()
+
+        if(EXISTS "${QNN_SDK_ROOT}/include/QNN")
+            target_include_directories(localimage_runtime PRIVATE
+                ${QNN_SDK_ROOT}/include
+            )
+            target_compile_definitions(localimage_runtime PRIVATE LOCALIMAGE_QNN)
+
+            # Link QNN libraries dynamically (loaded at runtime via dlopen)
+            # The actual backend/skel libraries are loaded by qnn_context.cpp
+            target_link_libraries(localimage_runtime dl)
+
+            message(STATUS "LocalImage: QNN HTP NPU backend ENABLED (SDK: ${QNN_SDK_ROOT})")
+            message(STATUS "LocalImage: Minimum target: Snapdragon 8 Gen3 (Hexagon v75)")
+        else()
+            message(WARNING "LocalImage: QNN SDK not found at ${QNN_SDK_ROOT} — NPU backend will be stubbed")
+            set(LOCALIMAGE_QNN OFF)
+        endif()
+    else()
+        message(STATUS "LocalImage: NPU code compiled in but QNN SDK not enabled (use -DLOCALIMAGE_QNN=ON)")
+        message(STATUS "LocalImage: NPU will report unavailable at runtime until SDK is linked.")
+    endif()
 endif()

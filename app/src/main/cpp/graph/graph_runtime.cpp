@@ -4,6 +4,10 @@
 #include "../vulkan/vulkan_context.h"
 #include "../vulkan/vulkan_compute.h"
 #endif
+#ifndef LOCALIMAGE_NO_NPU
+#include "../npu/qnn/qnn_graph_executor.h"
+#include "../npu/qnn/qnn_op_map.h"
+#endif
 #include "../runtime/ir/localimage_ir.h"
 #include <queue>
 #include <set>
@@ -310,16 +314,139 @@ bool VulkanBackend::execute(OpType op,const std::vector<Tensor>& inputs,Tensor& 
 #endif
 }
 
-bool Graph::execute(const TensorRegistry& inputs, TensorRegistry& outputs, bool preferVulkan,
+// ============================================================================
+// NpuBackend implementation
+// ============================================================================
+
+struct NpuBackend::Impl {
+#ifndef LOCALIMAGE_NO_NPU
+    npu::qnn::QnnGraphExecutor executor;
+    npu::qnn::OpMapper opMapper;
+    bool initialized = false;
+    bool npuAvailable = false;
+#endif
+    std::string initError;
+};
+
+NpuBackend::NpuBackend() : impl_(std::make_unique<Impl>()) {
+#ifndef LOCALIMAGE_NO_NPU
+    std::string err;
+    auto& ctx = npu::qnn::getQnnContext();
+    if (ctx.initialize(err)) {
+        impl_->npuAvailable = impl_->executor.initialize(ctx, err);
+    }
+    if (!impl_->npuAvailable) {
+        impl_->initError = err;
+    }
+    impl_->initialized = true;
+#else
+    impl_->initError = "NPU backend not compiled in";
+#endif
+}
+
+NpuBackend::~NpuBackend() = default;
+
+bool NpuBackend::available(std::string& error) const {
+#ifndef LOCALIMAGE_NO_NPU
+    if (!impl_->initialized) {
+        error = "NPU backend not initialized";
+        return false;
+    }
+    if (!impl_->npuAvailable) {
+        error = impl_->initError.empty() ? std::string("NPU unavailable") : impl_->initError;
+        return false;
+    }
+    return impl_->executor.isReady();
+#else
+    error = impl_->initError;
+    return false;
+#endif
+}
+
+bool NpuBackend::execute(OpType op,
+                          const std::vector<tensor::Tensor>& inputs,
+                          tensor::Tensor& output,
+                          const GraphNode& node,
+                          std::string& e) const {
+#ifndef LOCALIMAGE_NO_NPU
+    if (!impl_->npuAvailable || !impl_->executor.isReady()) {
+        e = "NPU backend is not available";
+        return false;
+    }
+
+    // Map graph OpType to IR op
+    ir::Op iop = ir::Op::Input;
+    switch(op) {
+        case OpType::Add:iop=ir::Op::Add;break;
+        case OpType::Sub:iop=ir::Op::Sub;break;
+        case OpType::Mul:iop=ir::Op::Mul;break;
+        case OpType::Div:iop=ir::Op::Div;break;
+        case OpType::Exp:iop=ir::Op::Exp;break;
+        case OpType::Sqrt:iop=ir::Op::Sqrt;break;
+        case OpType::Rsqrt:iop=ir::Op::Rsqrt;break;
+        case OpType::GELU:iop=ir::Op::GELU;break;
+        case OpType::SiLU:iop=ir::Op::SiLU;break;
+        case OpType::Clamp:iop=ir::Op::Clamp;break;
+        case OpType::MatMul:iop=ir::Op::MatMul;break;
+        case OpType::BatchedMatMul:iop=ir::Op::BatchedMatMul;break;
+        case OpType::Linear:iop=ir::Op::Linear;break;
+        case OpType::Conv2D:iop=ir::Op::Conv2D;break;
+        case OpType::Softmax:iop=ir::Op::Softmax;break;
+        case OpType::LayerNorm:iop=ir::Op::LayerNorm;break;
+        case OpType::RMSNorm:iop=ir::Op::RMSNorm;break;
+        case OpType::GroupNorm:iop=ir::Op::GroupNorm;break;
+        case OpType::Attention:iop=ir::Op::Attention;break;
+        case OpType::Transpose:iop=ir::Op::Transpose;break;
+        case OpType::Slice:iop=ir::Op::Slice;break;
+        case OpType::Broadcast:iop=ir::Op::Broadcast;break;
+        case OpType::Concat:iop=ir::Op::Concat;break;
+        case OpType::Upsample:iop=ir::Op::Upsample;break;
+        case OpType::RoPE:iop=ir::Op::RoPE;break;
+        case OpType::Reshape:iop=ir::Op::Reshape;break;
+        default:
+            e = "NPU operator unavailable: " + std::string(opName(op));
+            return false;
+    }
+
+    // Build IR attributes from node
+    ir::Attributes attr;
+    attr.axes = node.axes;
+    attr.permutation = node.permutation;
+    attr.groups = node.groups;
+    attr.stride = node.stride;
+    attr.padding = node.padding;
+    attr.dilation = node.dilation;
+    attr.scale_factor = node.scale_factor;
+    attr.epsilon = node.epsilon;
+    attr.attention_scale = node.attention_scale;
+    attr.keepdim = node.keepdim;
+    attr.reshape_shape = node.reshape_shape;
+    attr.broadcast_shape = node.broadcast_shape;
+    attr.slice_starts = node.slice_starts;
+    attr.slice_lengths = node.slice_lengths;
+
+    return impl_->executor.executeSingleOp(iop, attr, inputs, output, e);
+#else
+    (void)op;(void)inputs;(void)output;(void)node;
+    e = "NPU backend not compiled in";
+    return false;
+#endif
+}
+
+bool Graph::execute(const TensorRegistry& inputs, TensorRegistry& outputs, bool preferVulkan, bool preferNpu,
                    std::string& backend, std::string& e) const {
  if(!validate(e)) return false;
  std::vector<uint32_t> order; if(!topologicalSort(order,e)) return false;
  CPUBackend cpu;
  VulkanBackend vk;
- std::string vkError;
+ NpuBackend npu;
+ std::string vkError, npuError;
  const bool vkReady = preferVulkan && vk.available(vkError);
- bool usedVulkan=false, usedCpu=false;
- backend = vkReady ? "Vulkan" : "CPU";
+ const bool npuReady = preferNpu && npu.available(npuError);
+ bool usedVulkan=false, usedCpu=false, usedNpu=false;
+ if(npuReady) backend = "NPU";
+ else if(vkReady) backend = "Vulkan";
+ else backend = "CPU";
  TensorRegistry values;
  for(const auto& n:nodes_) if(n.op==OpType::Input) {
   if(n.outputs.size()!=1){e="Input node must have exactly one output";return false;}
@@ -339,17 +466,38 @@ bool Graph::execute(const TensorRegistry& inputs, TensorRegistry& outputs, bool 
    if(n.outputs.size()!=1){e="Reshape requires exactly one output";return false;}
    if(!TensorRuntime().reshape(ins[0],values_[n.outputs[0]].shape,out,e)) return false;
   } else {
-   std::string gpuError;
-   bool done = vkReady && vk.execute(n.op,ins,out,n,gpuError);
-   if(done) { usedVulkan = true; }
-   else if(vkReady) {
-     // Only a positively identified UNSUPPORTED operator may fall back. A
-     // pipeline/device/execution failure must be surfaced to the caller.
-     const bool unsupported = gpuError.rfind("Vulkan operator unavailable:", 0) == 0;
-     if(!unsupported) { e = gpuError.empty() ? "Vulkan execution failed" : gpuError; return false; }
-     if(!cpu.execute(n.op,ins,out,e,&n)) return false;
-     usedCpu = true;
-   } else {
+   std::string npuOpError, gpuError;
+   bool done = false;
+
+   // Priority 1: NPU (Qualcomm QNN HTP)
+   if(npuReady) {
+     done = npu.execute(n.op,ins,out,n,npuOpError);
+     if(done) { usedNpu = true; }
+     else {
+       // Only fall back if it's an "unsupported op" error.
+       // Real NPU execution failures must surface to caller.
+       const bool unsupported =
+           npuOpError.rfind("NPU operator unavailable:", 0) == 0 ||
+           npuOpError.rfind("QNN backend does not support op:", 0) == 0;
+       if(!unsupported) {
+         e = npuOpError.empty() ? "NPU execution failed" : npuOpError;
+         return false;
+       }
+     }
+   }
+
+   // Priority 2: Vulkan GPU
+   if(!done && vkReady) {
+     done = vk.execute(n.op,ins,out,n,gpuError);
+     if(done) { usedVulkan = true; }
+     else {
+       const bool unsupported = gpuError.rfind("Vulkan operator unavailable:", 0) == 0;
+       if(!unsupported) { e = gpuError.empty() ? "Vulkan execution failed" : gpuError; return false; }
+     }
+   }
+
+   // Priority 3: CPU fallback
+   if(!done) {
      if(!cpu.execute(n.op,ins,out,e,&n)) return false;
      usedCpu = true;
    }
@@ -359,9 +507,18 @@ bool Graph::execute(const TensorRegistry& inputs, TensorRegistry& outputs, bool 
   if(!values.put(v.name,out,e))return false;
  }
  for(const auto& v:values_) if(values.has(v.name)){Tensor t;if(values.get(v.name,t,e))outputs.put(v.name,t,e);}
- if(usedVulkan && usedCpu) backend="Hybrid";
- else if(usedVulkan) backend="Vulkan";
- else backend="CPU";
+ // Report backend composition
+ int usedCount = (usedNpu?1:0) + (usedVulkan?1:0) + (usedCpu?1:0);
+ if(usedCount > 1) {
+   std::string comp;
+   if(usedNpu) comp += "NPU+";
+   if(usedVulkan) comp += "Vulkan+";
+   if(usedCpu) comp += "CPU";
+   if(!comp.empty() && comp.back() == '+') comp.pop_back();
+   backend = comp;
+ } else if(usedNpu) backend = "NPU";
+ else if(usedVulkan) backend = "Vulkan";
+ else backend = "CPU";
  return true;
 }
 

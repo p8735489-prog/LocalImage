@@ -50,7 +50,7 @@ public:
                              std::vector<uint64_t> sliceLengths, std::string& error);
  bool validate(std::string& error) const;
  bool execute(const TensorRegistry& inputs, TensorRegistry& outputs,
-              bool preferVulkan, std::string& backend, std::string& error) const;
+              bool preferVulkan, bool preferNpu, std::string& backend, std::string& error) const;
  const std::vector<GraphValue>& values() const{return values_;}
  const std::vector<GraphNode>& nodes() const{return nodes_;}
  bool topologicalSort(std::vector<uint32_t>& order,std::string& error) const;
@@ -84,6 +84,21 @@ private:
  std::unique_ptr<localimage::VulkanContext> context_;
  std::unique_ptr<localimage::vulkan::VulkanCompute> compute_;
 #endif
+};
+
+// NPU Backend: delegates to Qualcomm QNN HTP (Hexagon DSP)
+// Follows the same pattern as VulkanBackend for easy integration.
+class NpuBackend {
+public:
+ NpuBackend();
+ ~NpuBackend();
+ NpuBackend(const NpuBackend&) = delete;
+ NpuBackend& operator=(const NpuBackend&) = delete;
+ bool available(std::string& error) const;
+ bool execute(OpType op,const std::vector<tensor::Tensor>& inputs,tensor::Tensor& output,const GraphNode& node,std::string& error) const;
+private:
+ struct Impl;
+ std::unique_ptr<Impl> impl_;
 };
 
 } // namespace graph

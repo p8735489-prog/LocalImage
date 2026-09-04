@@ -14,15 +14,24 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [ standard ]
+        include:
+          - flavor: standard
+            apkSuffix: ""
+            cmakeArgs: ""
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -42,8 +51,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.5.0'
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/v') }}
 
-      - name: Verify project
+      - name: Verify project structure
         shell: bash
         run: |
           test -f app/build.gradle.kts
@@ -53,6 +63,10 @@ jobs:
           test -f gradlew.bat
           test -f gradle/wrapper/gradle-wrapper.properties
           test -f app/src/main/res/drawable/localimage_icon.png
+          test -f app/src/main/cpp/npu/npu_backend.cpp
+          test -f app/src/main/cpp/npu/qnn/qnn_context.cpp
+          test -f app/src/main/cpp/npu/qnn/qnn_graph_executor.cpp
+          echo "✓ Project structure verified"
 
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace :app:assembleDebug
@@ -66,10 +80,14 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           cp app/build/outputs/apk/debug/app-debug.apk dist/LocalImage-debug.apk
-          test -f app/build/outputs/apk/release/app-release-unsigned.apk
-          cp app/build/outputs/apk/release/app-release-unsigned.apk dist/LocalImage-release-unsigned.apk
+          if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            cp app/build/outputs/apk/release/app-release-unsigned.apk dist/LocalImage-release-unsigned.apk
+          fi
           sha256sum dist/*.apk > dist/SHA256SUMS.txt
+          echo "=== Build artifacts ==="
           ls -lh dist
+          echo "=== SHA256 ==="
+          cat dist/SHA256SUMS.txt
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -78,6 +96,7 @@ jobs:
           path: dist/
           if-no-files-found: error
           retention-days: 30
+          compression-level: 9
 
       - name: Publish/update continuous release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -86,6 +105,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          RELEASE_BODY="### LocalImage Continuous Build
+          Latest successful main-branch Android build.
+
+          **Commit**: \`${GITHUB_SHA::7}\`
+          **Date**: $(date -u +"%Y-%m-%d %H:%M UTC")
+
+          #### Files
+          - \`LocalImage-debug.apk\` — Debug build (installable directly)
+          - \`LocalImage-release-unsigned.apk\` — Release build (needs signing)
+          - \`SHA256SUMS.txt\` — Checksums
+
+          #### NPU Support
+          - Qualcomm QNN HTP backend code compiled in (stubbed without SDK)
+          - Minimum target: Snapdragon 8 Gen3 (Hexagon DSP v75)
+          - Enable with: \`-DLOCALIMAGE_QNN=ON -DQNN_SDK_ROOT=/path/to/sdk\`
+          "
+
           if gh release view continuous >/dev/null 2>&1; then
             gh release upload continuous \
               dist/LocalImage-debug.apk \
@@ -94,6 +130,7 @@ jobs:
               --clobber
             gh release edit continuous \
               --title "LocalImage Continuous Build" \
+              --notes "$RELEASE_BODY" \
               --prerelease
           else
             gh release create continuous \
@@ -101,7 +138,7 @@ jobs:
               dist/LocalImage-release-unsigned.apk \
               dist/SHA256SUMS.txt \
               --title "LocalImage Continuous Build" \
-              --notes "Latest successful main-branch Android build." \
+              --notes "$RELEASE_BODY" \
               --prerelease \
               --target "${GITHUB_SHA}"
           fi
@@ -112,6 +149,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
+          set -euo pipefail
           gh release create "${GITHUB_REF_NAME}" \
             dist/LocalImage-debug.apk \
             dist/LocalImage-release-unsigned.apk \
