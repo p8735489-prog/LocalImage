@@ -298,7 +298,7 @@ Java_com_haobai_localimage_NativeRuntime_nativeRunTensorTest(JNIEnv* env, jclass
     report << "Reshape ✓\n";
 
     Tensor sliced;
-    if (!rt.slice(a, 0, 1, sliced, error)) return fail("slice: " + error);
+    if (!rt.slice(a, 0, 1, 1, sliced, error)) return fail("slice: " + error);
     const float* sp=static_cast<const float*>(sliced.data());
     if (sliced.shape().dim(0)!=1 || std::fabs(sp[0]-4)>1e-6f) return fail("slice result");
     report << "Slice ✓\n";

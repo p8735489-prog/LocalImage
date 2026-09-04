@@ -228,7 +228,7 @@ private fun LocalImageTheme(content: @Composable () -> Unit) {
                 extraLarge = PixelShapeXL,
             )
         },
-        content = content
+        content = { content() }
     )
 }
 

@@ -141,7 +141,6 @@ bool VulkanContext::createLogicalDevice(std::string& error) {
     VkPhysicalDeviceFeatures2 enabled{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
     VkPhysicalDevice16BitStorageFeatures enabled_storage{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES};
     enabled.pNext = &enabled_storage;
-    enabled.features.shaderFloat16 = available.features.shaderFloat16;
     enabled.features.shaderInt16 = available.features.shaderInt16;
     enabled_storage.storageBuffer16BitAccess = available_storage.storageBuffer16BitAccess;
     enabled_storage.uniformAndStorageBuffer16BitAccess = available_storage.uniformAndStorageBuffer16BitAccess;
@@ -174,10 +173,11 @@ localimage::runtime::DeviceInfo VulkanContext::deviceInfo() const {
     localimage::runtime::DeviceInfo info;
     if (physical_device_ == VK_NULL_HANDLE) return info;
 
-    VkPhysicalDeviceProperties properties{};
+    VkPhysicalDeviceProperties2 properties2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
     VkPhysicalDeviceIDProperties id_properties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES};
-    properties.pNext = &id_properties;
-    vkGetPhysicalDeviceProperties(physical_device_, &properties);
+    properties2.pNext = &id_properties;
+    vkGetPhysicalDeviceProperties2(physical_device_, &properties2);
+    const VkPhysicalDeviceProperties& properties = properties2.properties;
 
     info.device_name = properties.deviceName;
     info.vendor_id = properties.vendorID;
@@ -228,7 +228,7 @@ VulkanDeviceCapabilities VulkanContext::capabilities() const {
     properties2.pNext = &subgroup;
     vkGetPhysicalDeviceProperties2(physical_device_, &properties2);
     const VkPhysicalDeviceProperties& properties = properties2.properties;
-    out.shader_float16 = features.features.shaderFloat16 == VK_TRUE;
+    out.shader_float16 = false;
     out.shader_int16 = features.features.shaderInt16 == VK_TRUE;
     out.storage_buffer_16bit = storage.storageBuffer16BitAccess == VK_TRUE;
     out.subgroup = subgroup.subgroupSize != 0;
