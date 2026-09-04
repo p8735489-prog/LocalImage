@@ -10,11 +10,13 @@ import android.os.Bundle
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +30,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -306,7 +309,7 @@ private fun PixelButton(
             defaultElevation = 2.dp,
             pressedElevation = 0.dp,
         ),
-        content = content
+        content = { content() }
     )
 }
 
@@ -323,9 +326,7 @@ private fun StatusBadge(text: String, success: Boolean = true) {
             containerColor = bg,
             labelColor = fg,
         ),
-        border = androidx.compose.material3.AssistChipDefaults.assistChipBorder(
-            borderColor = fg.copy(alpha = 0.5f)
-        )
+        border = BorderStroke(1.dp, fg.copy(alpha = 0.5f))
     )
 }
 
