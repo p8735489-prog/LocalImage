@@ -635,7 +635,7 @@ bool QnnGraphExecutor::inferOutputShape(
             return true;
         }
         default:
-            error = "Shape inference not implemented for op: " +
+            error = "Shape inference unavailable for op: " +
                     std::string(ir::opName(op));
             return false;
     }
@@ -999,8 +999,8 @@ bool QnnGraphExecutor::executeSubgraph(
     // 3. Execute once
     // 4. Read all outputs
     //
-    // For now, this is a placeholder - per-op execution is the primary path
-    error = "Subgraph execution not yet implemented (use per-op mode)";
+    // For now, subgraph mode is deferred - per-op execution is the primary path
+    error = "Subgraph execution unavailable (use per-op mode)";
     return false;
 }
 
