@@ -1,4 +1,4 @@
-name: Android APK
+name: Android APK Build
 
 on:
   push:
@@ -47,10 +47,12 @@ jobs:
             "ndk;29.0.14206865" \
             "cmake;3.22.1"
 
-      - name: Set up Gradle
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Gradle cache
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '9.5.0'
           cache-read-only: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/v') }}
 
       - name: Verify project structure
@@ -62,17 +64,19 @@ jobs:
           test -f gradlew
           test -f gradlew.bat
           test -f gradle/wrapper/gradle-wrapper.properties
+          test -f gradle/wrapper/gradle-wrapper.jar
           test -f app/src/main/res/drawable/localimage_icon.png
           test -f app/src/main/cpp/npu/npu_backend.cpp
           test -f app/src/main/cpp/npu/qnn/qnn_context.cpp
           test -f app/src/main/cpp/npu/qnn/qnn_graph_executor.cpp
+          test -f app/src/main/java/com/haobai/localimage/MainActivity.kt
           echo "✓ Project structure verified"
 
       - name: Build debug APK
-        run: gradle --no-daemon --stacktrace :app:assembleDebug
+        run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
 
       - name: Build release APK
-        run: gradle --no-daemon --stacktrace :app:assembleRelease
+        run: ./gradlew --no-daemon --stacktrace :app:assembleRelease
 
       - name: Collect APKs
         shell: bash
