@@ -170,6 +170,48 @@ Java_com_haobai_localimage_NativeRuntime_nativeGetFirstSupportedTensorBytes(JNIE
     return env->NewStringUTF("No F16/F32 tensor available");
 }
 
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_haobai_localimage_NativeRuntime_nativeGetGenerationReadiness(JNIEnv* env, jclass, jlong handle) {
+    auto* file = fromHandle(handle);
+    if (!file) {
+        throwJava(env, "java/lang/IllegalStateException", "invalid SafeTensor handle");
+        return nullptr;
+    }
+    std::string validation;
+    if (!file->validate(validation)) {
+        throwJava(env, "java/io/IOException", validation);
+        return nullptr;
+    }
+
+    const auto detection = localimage::models::ModelDetector{}.detect(*file);
+    std::ostringstream os;
+    os << "architecture=" << localimage::models::architectureName(detection.architecture) << "\n";
+    os << "confidence=" << std::fixed << std::setprecision(2) << detection.confidence << "\n";
+    os << "components: UNet=" << (detection.components.unet ? "yes" : "no")
+       << ", VAE=" << (detection.components.vae ? "yes" : "no")
+       << ", CLIP=" << (detection.components.clip ? "yes" : "no")
+       << ", OpenCLIP=" << (detection.components.openclip ? "yes" : "no")
+       << ", T5=" << (detection.components.t5 ? "yes" : "no")
+       << ", Transformer=" << (detection.components.transformer ? "yes" : "no") << "\n";
+
+    const bool complete =
+        detection.architecture == localimage::models::Architecture::StableDiffusion15 &&
+        detection.components.unet && detection.components.vae && detection.components.clip;
+
+    // This is deliberately a capability gate, not a fake image generator.  The
+    // current tree has a real tensor/graph/Vulkan foundation, but it does not yet
+    // contain the complete SD1.x text-encoder -> UNet -> VAE pipeline.
+    os << "generation=" << (complete ? "pipeline-not-yet-wired" : "blocked") << "\n";
+    if (detection.architecture == localimage::models::Architecture::Unknown) {
+        os << "reason=无法可靠识别模型架构，禁止进入生成链路";
+    } else if (!complete) {
+        os << "reason=" << (detection.reason.empty() ? "缺少可执行的完整模型组件" : detection.reason);
+    } else {
+        os << "reason=SD1.x 组件完整，但当前版本尚未把文本编码器、UNet、Scheduler、VAE 串成真实生成图";
+    }
+    return env->NewStringUTF(os.str().c_str());
+}
+
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_haobai_localimage_NativeRuntime_nativeValidateModel(JNIEnv* env, jclass, jlong handle) {
     auto* file = fromHandle(handle);

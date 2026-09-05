@@ -1,0 +1,28 @@
+name: Runtime Audit
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify generation JNI boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The UI must not silently claim that an image was generated.
+          grep -q 'current工程的生成图链路尚未接通' app/src/main/java/com/haobai/localimage/MainActivity.kt
+          # Until a real generation entry point exists, model runtimes must fail closed.
+          grep -q 'SDXL generation cannot proceed' app/src/main/cpp/sdxl/sdxl_runtime.cpp
+          # Keep a clear distinction between model inspection and inference.
+          grep -q 'nativeGetModelArchitecture' app/src/main/cpp/native_runtime.cpp
+          if grep -q 'Java_com_haobai_localimage_NativeRuntime_nativeGenerate' app/src/main/cpp/native_runtime.cpp; then
+            echo "Generation JNI entry point detected."
+          else
+            echo "INFO: generation JNI entry point is not implemented yet; build remains inspection/runtime-safe."
+          fi

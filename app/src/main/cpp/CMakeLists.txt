@@ -1,6 +1,29 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(localimage_runtime LANGUAGES CXX)
 
+# Real image-generation backend: stable-diffusion.cpp.
+# It is fetched at configure time so the APK contains an actual SD inference
+# engine instead of a placeholder generator. The upstream project supports
+# SafeTensors/SD1.x and Android, with Vulkan as an optional backend.
+include(FetchContent)
+set(SD_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(SD_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(SD_WEBP OFF CACHE BOOL "" FORCE)
+set(SD_WEBM OFF CACHE BOOL "" FORCE)
+set(SD_VULKAN ON CACHE BOOL "" FORCE)
+set(SD_OPENCL OFF CACHE BOOL "" FORCE)
+set(SD_METAL OFF CACHE BOOL "" FORCE)
+set(SD_CUDA OFF CACHE BOOL "" FORCE)
+set(SD_HIPBLAS OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(stable_diffusion_cpp
+    GIT_REPOSITORY https://github.com/leejet/stable-diffusion.cpp.git
+    GIT_TAG master
+    GIT_SHALLOW TRUE
+    GIT_SUBMODULES ggml
+    GIT_SUBMODULES_RECURSE TRUE
+)
+FetchContent_MakeAvailable(stable_diffusion_cpp)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -46,12 +69,14 @@ add_library(localimage_runtime SHARED
     sdxl/sdxl_runtime.cpp
     tokenizer/bpe_tokenizer.cpp
     image/png_writer.cpp
+    sdcpp_bridge.cpp
 )
 
 target_include_directories(localimage_runtime PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/vulkan
     ${CMAKE_CURRENT_SOURCE_DIR}/safetensors
+    ${stable_diffusion_cpp_SOURCE_DIR}/include
 )
 
 target_compile_options(localimage_runtime PRIVATE
@@ -65,6 +90,7 @@ target_link_libraries(localimage_runtime
     android
     log
     vulkan
+    stable-diffusion
 )
 
 # Neural compute shaders are compiled to SPIR-V at build time when glslc is available.

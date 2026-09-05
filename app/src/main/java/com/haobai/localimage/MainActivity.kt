@@ -49,6 +49,9 @@ import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Typography
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -113,85 +116,13 @@ import kotlinx.coroutines.withContext
 import java.util.Locale
 
 // ============================================================
-// Pixel / Retro Color Palette
+// Material 3 theme
 // ============================================================
+// Use AndroidX Material 3 primitives and system dynamic color.
+// The UI is intentionally original and does not imitate another app.
 
-// 像素风配色：霓虹紫 + 电光青 + 像素粉
-private val PixelPrimary = Color(0xFF8B5CF6)      // 霓虹紫
-private val PixelOnPrimary = Color(0xFFFFFFFF)
-private val PixelPrimaryContainer = Color(0xFF2D1B69) // 深紫容器
-private val PixelOnPrimaryContainer = Color(0xFFE9D5FF)
-
-private val PixelSecondary = Color(0xFF06B6D4)     // 电光青
-private val PixelOnSecondary = Color(0xFF000000)
-private val PixelSecondaryContainer = Color(0xFF083344)
-private val PixelOnSecondaryContainer = Color(0xFFA5F3FC)
-
-private val PixelTertiary = Color(0xFFF472B6)      // 像素粉
-private val PixelTertiaryContainer = Color(0xFF500724)
-
-private val PixelSurface = Color(0xFF0F0A1F)       // 深紫黑底
-private val PixelSurfaceVariant = Color(0xFF1E1B4B) // 靛蓝灰
-private val PixelOnSurface = Color(0xFFE0E7FF)
-private val PixelOnSurfaceVariant = Color(0xFF94A3B8)
-private val PixelOutline = Color(0xFF6366F1)
-private val PixelOutlineVariant = Color(0xFF4338CA)
-
-private val PixelError = Color(0xFFF87171)
-private val PixelSuccess = Color(0xFF34D399)
-private val PixelWarning = Color(0xFFFBBF24)
-
-// 亮色主题
-private val PixelLightPrimary = Color(0xFF7C3AED)
-private val PixelLightSurface = Color(0xFFFAFAFF)
-private val PixelLightOnSurface = Color(0xFF1E1B4B)
-
-private val LightPixelColors = lightColorScheme(
-    primary = PixelLightPrimary,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFEDE9FE),
-    onPrimaryContainer = Color(0xFF4C1D95),
-    secondary = PixelSecondary,
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFCFFAFE),
-    onSecondaryContainer = Color(0xFF083344),
-    tertiary = PixelTertiary,
-    tertiaryContainer = Color(0xFFFCE7F3),
-    surface = PixelLightSurface,
-    onSurface = PixelLightOnSurface,
-    surfaceVariant = Color(0xFFEDE9FE),
-    onSurfaceVariant = Color(0xFF4338CA),
-    outline = Color(0xFFA78BFA),
-    outlineVariant = Color(0xFFDDD6FE),
-    error = Color(0xFFEF4444),
-)
-
-private val DarkPixelColors = darkColorScheme(
-    primary = PixelPrimary,
-    onPrimary = PixelOnPrimary,
-    primaryContainer = PixelPrimaryContainer,
-    onPrimaryContainer = PixelOnPrimaryContainer,
-    secondary = PixelSecondary,
-    onSecondary = PixelOnSecondary,
-    secondaryContainer = PixelSecondaryContainer,
-    onSecondaryContainer = PixelOnSecondaryContainer,
-    tertiary = PixelTertiary,
-    tertiaryContainer = PixelTertiaryContainer,
-    surface = PixelSurface,
-    onSurface = PixelOnSurface,
-    surfaceVariant = PixelSurfaceVariant,
-    onSurfaceVariant = PixelOnSurfaceVariant,
-    outline = PixelOutline,
-    outlineVariant = PixelOutlineVariant,
-    error = PixelError,
-    onError = Color(0xFF000000),
-)
-
-// 像素风格形状 — 硬切角 + 略微圆角，模拟像素感
-private val PixelShapeSmall = RoundedCornerShape(4.dp)
-private val PixelShapeMedium = RoundedCornerShape(8.dp)
-private val PixelShapeLarge = RoundedCornerShape(12.dp)
-private val PixelShapeXL = RoundedCornerShape(16.dp)
+private val FallbackLightScheme = lightColorScheme()
+private val FallbackDarkScheme = darkColorScheme()
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -205,90 +136,45 @@ class MainActivity : ComponentActivity() {
 private fun LocalImageTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val dark = androidx.compose.foundation.isSystemInDarkTheme()
-    // 使用自定义像素配色方案，深色模式下效果最佳
-    val colors = if (dark) DarkPixelColors else LightPixelColors
+    val colors = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    } else {
+        if (dark) FallbackDarkScheme else FallbackLightScheme
+    }
     MaterialTheme(
         colorScheme = colors,
-        typography = MaterialTheme.typography.let {
-            it.copy(
-                displayLarge = it.displayLarge.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold),
-                headlineLarge = it.headlineLarge.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold),
-                headlineMedium = it.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
-                titleLarge = it.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-                titleMedium = it.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                bodyMedium = it.bodyMedium.copy(fontSize = 14.sp),
-                labelLarge = it.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-            )
-        },
-        shapes = MaterialTheme.shapes.let {
-            it.copy(
-                small = PixelShapeSmall,
-                medium = PixelShapeMedium,
-                large = PixelShapeLarge,
-                extraLarge = PixelShapeXL,
-            )
-        },
-        content = { content() }
+        typography = Typography(),
+        content = content
     )
 }
 
-// 像素风格装饰 — 顶部渐变条
 @Composable
 private fun PixelGlowHeader(modifier: Modifier = Modifier) {
-    Box(
-        modifier
-            .height(3.dp)
-            .fillMaxWidth()
-            .background(
-                brush = Brush.horizontalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.primary,
-                        MaterialTheme.colorScheme.secondary,
-                        MaterialTheme.colorScheme.tertiary,
-                        MaterialTheme.colorScheme.primary,
-                    )
-                )
-            )
-    )
+    HorizontalDivider(modifier = modifier.fillMaxWidth())
 }
 
-// 像素卡片 — 带发光边框效果
 @Composable
 private fun PixelCard(
     modifier: Modifier = Modifier,
     glow: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val baseColor = MaterialTheme.colorScheme.surfaceVariant
-    val glowColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-
     Card(
-        modifier = modifier
-            .then(
-                if (glow) Modifier.border(
-                    width = 1.dp,
-                    color = glowColor,
-                    shape = MaterialTheme.shapes.large
-                ) else Modifier
-            ),
-        shape = MaterialTheme.shapes.large,
+        modifier = modifier,
         colors = CardDefaults.cardColors(
-            containerColor = baseColor,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (glow) 4.dp else 2.dp),
-        content = {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                content = { content() }
-            )
-        }
-    )
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (glow) 2.dp else 0.dp
+        )
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) { content() }
+    }
 }
 
-// 像素按钮样式
 @Composable
 private fun PixelButton(
     onClick: () -> Unit,
@@ -296,37 +182,24 @@ private fun PixelButton(
     enabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    Button(
-        onClick = onClick,
-        modifier = modifier,
-        enabled = enabled,
-        shape = MaterialTheme.shapes.medium,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-        ),
-        elevation = ButtonDefaults.buttonElevation(
-            defaultElevation = 2.dp,
-            pressedElevation = 0.dp,
-        ),
-        content = { content() }
-    )
+    Button(onClick = onClick, modifier = modifier, enabled = enabled, content = { content() })
 }
 
-// 状态徽章
 @Composable
 private fun StatusBadge(text: String, success: Boolean = true) {
-    val bg = if (success) PixelSuccess.copy(alpha = 0.15f) else PixelError.copy(alpha = 0.15f)
-    val fg = if (success) PixelSuccess else PixelError
+    val contentColor = if (success) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.error
+    }
     AssistChip(
         onClick = {},
-        label = { Text(text, fontWeight = FontWeight.SemiBold, fontSize = 12.sp) },
-        shape = MaterialTheme.shapes.small,
-        colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
-            containerColor = bg,
-            labelColor = fg,
-        ),
-        border = BorderStroke(1.dp, fg.copy(alpha = 0.5f))
+        enabled = false,
+        label = { Text(text) },
+        colors = AssistChipDefaults.assistChipColors(
+            disabledContainerColor = contentColor.copy(alpha = 0.12f),
+            disabledLabelColor = contentColor
+        )
     )
 }
 
@@ -421,7 +294,7 @@ private fun LocalImageApp() {
                 customWidth = detected.recommendedWidth.toString()
                 customHeight = detected.recommendedHeight.toString()
                 resolutionInfo = resolveResolution(context, detected, detected.recommendedWidth, detected.recommendedHeight, fileSize)
-                status = "✓ SafeTensors / mmap 已验证"
+                status = "✓ 模型已加载；生成前会执行 Runtime 能力检查"
                 page = 0
             } catch (t: Throwable) {
                 if (handle != 0L) NativeRuntime.nativeCloseSafeTensor(handle)
@@ -511,8 +384,49 @@ private fun LocalImageApp() {
                         cfg, { cfg = it }, seed, { seed = it }, scheduler, { scheduler = it },
                         onAdvanced = { advanced = true },
                         onGenerate = {
-                            if (handle == 0L) generateMessage = "请先导入一个真实模型"
-                            else generateMessage = "当前工程的生成图链路尚未接通；Runtime 不会伪造图片输出。模型 Inspector、ResolutionPolicy 和 CPU/Vulkan/NPU Runtime 已可执行。"
+                            if (handle == 0L) {
+                                generateMessage = "请先导入一个真实模型"
+                            } else {
+                                loading = true
+                                scope.launch(Dispatchers.Default) {
+                                    val result = try {
+                                        val (w, h) = if (custom) {
+                                            customWidth.toIntOrNull() to customHeight.toIntOrNull()
+                                        } else {
+                                            val baseW = architecture.recommendedWidth
+                                            val baseH = architecture.recommendedHeight
+                                            val rw = baseW * aspect.w / aspect.w
+                                            val rh = baseH * aspect.h / aspect.w
+                                            rw to rh
+                                        }
+                                        if (w == null || h == null || w < 64 || h < 64) {
+                                            "创建失败：分辨率无效"
+                                        } else {
+                                            val out = java.io.File(context.filesDir, "generated_${System.currentTimeMillis()}.png")
+                                            val seedValue = seed ?: -1L
+                                            val nativeScheduler = when (scheduler) {
+                                                "DDIM" -> "Discrete"
+                                                "FlowMatch" -> "FlowMatch"
+                                                else -> "Discrete"
+                                            }
+                                            val nativeSampler = when (scheduler) {
+                                                "DDIM" -> "DDIM"
+                                                else -> "Euler"
+                                            }
+                                            NativeRuntime.nativeGenerate(
+                                                handle, prompt, negativePrompt, w, h, steps, cfg, seedValue,
+                                                nativeScheduler, nativeSampler, out.absolutePath
+                                            )
+                                        }
+                                    } catch (t: Throwable) {
+                                        "创建检查失败：${t.message ?: "Native Runtime error"}"
+                                    }
+                                    withContext(Dispatchers.Main) {
+                                        generateMessage = result
+                                        loading = false
+                                    }
+                                }
+                            }
                         },
                         onImport = { picker.launch(arrayOf("application/octet-stream", "application/x-safetensors", "*/*")) },
                         loading = loading,
@@ -815,6 +729,22 @@ private fun GenerationPage(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (generateMessage != null) {
+                    PixelCard {
+                        Text(
+                            "生成检查",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            generateMessage!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontFamily = FontFamily.Monospace,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
                 Spacer(Modifier.height(16.dp))
             }
             1 -> EmptyState("生成结果", "真实 Runtime 产生 PNG 后会显示在这里。", "🖼")
@@ -1310,6 +1240,11 @@ object NativeRuntime {
     external fun nativeGetTensorInfo(handle: Long, index: Int): String
     external fun nativeGetFirstSupportedTensorBytes(handle: Long): String
     external fun nativeValidateModel(handle: Long): Boolean
+    external fun nativeGetGenerationReadiness(handle: Long): String
+    external fun nativeGenerate(
+        handle: Long, prompt: String, negativePrompt: String, width: Int, height: Int,
+        steps: Int, cfg: Float, seed: Long, scheduler: String, sampler: String, outputPath: String
+    ): String
     external fun nativeGetModelHash(handle: Long): String
     external fun nativeGetModelArchitecture(handle: Long): String
     external fun nativeGetDeviceInfo(): String

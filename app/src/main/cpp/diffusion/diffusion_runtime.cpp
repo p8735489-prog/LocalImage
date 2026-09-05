@@ -31,7 +31,7 @@ bool EulerScheduler::configure(const SchedulerConfig& c,std::string&e){
 }
 bool EulerScheduler::step(const Tensor& mo,double t,const Tensor& x,Tensor&o,std::string&e)const{
  if(!f32(mo,e)||!f32(x,e)||!sameShape(mo,x)){e="Euler step requires matching F32 tensors";return false;} if(sigmas_.empty()){e="Euler scheduler is not configured";return false;} size_t i=0; double best=std::numeric_limits<double>::max();for(size_t j=0;j<timesteps_.size();j++){double d=std::fabs(t-timesteps_[j]);if(d<best){best=d;i=j;}} double s=sigmas_[i], sn=sigmas_[i+1], dt=sn-s; if(!allocLike(x,o,e))return false;
- auto*O=(float*)o.mutableData();auto*E=(const float*)mo.data();auto*X=(const float*)x.data();double denom=std::sqrt(1+s*s);for(uint64_t k=0;k<x.shape().elementCount();k++){double denoised=X[k]-s*E[k];double deriv=(X[k]-denoised)/std::max(1e-12,s);O[k]=(float)(X[k]+deriv*dt/denom);}return true;
+ auto*O=(float*)o.mutableData();auto*E=(const float*)mo.data();auto*X=(const float*)x.data();double denom=std::sqrt(1+s*s);for(uint64_t k=0;k<x.shape().elementCount();k++){double denoised=X[k]-s*E[k];double deriv=(X[k]-denoised)/std::max(1e-12,s);O[k]=(float)(X[k]+deriv*dt);}return true;
 }
 
 bool FlowMatchScheduler::configure(const SchedulerConfig& c,std::string&e){if(c.inference_steps==0||c.inference_steps>10000){e="invalid FlowMatch inference step count";return false;}timesteps_.resize(c.inference_steps);for(size_t i=0;i<c.inference_steps;i++)timesteps_[i]=1.0-(double)i/(double)c.inference_steps;return true;}

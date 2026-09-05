@@ -81,6 +81,7 @@ public:
     const std::unordered_map<std::string, TensorInfo>& tensors() const { return tensors_; }
     bool getTensorView(const std::string& name, TensorView& out, std::string& error) const;
     uint64_t fileSize() const { return file_size_; }
+    int fileDescriptor() const { return fd_; }
     const uint8_t* mappedData() const { return mapping_ ? mapping_->data() : nullptr; }
     uint64_t headerSize() const { return header_size_; }
     uint64_t dataStart() const { return data_start_; }

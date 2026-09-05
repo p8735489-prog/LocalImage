@@ -12,7 +12,7 @@ android {
         minSdk = 29
         targetSdk = 36
         versionCode = 1
-        versionName = "0.10.2-m10b-residency"
+        versionName = "0.10.3-m10c-m3-audit"
 
         ndkVersion = "29.0.14206865"
 

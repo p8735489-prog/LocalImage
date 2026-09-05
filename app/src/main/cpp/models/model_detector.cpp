@@ -16,8 +16,8 @@ Detection ModelDetector::detect(const safetensors::SafeTensorFile& f)const{
   flux|=n.find("double_blocks.")!=std::string::npos||n.find("single_blocks.")!=std::string::npos;
   anima|=n.find("anima")!=std::string::npos||n.find("Anima")!=std::string::npos;
   vae|=n.find("first_stage_model.")==0||n.find("vae.")==0||n.find("decoder.")==0;
-  clip|=n.find("cond_stage_model.transformer.text_model.")==0||n.find("text_encoder.")!=std::string::npos||n.find("clip_l.")!=std::string::npos;
-  openclip|=n.find("conditioner.embedders.1.")==0||n.find("text_encoder_2.")==0||n.find("clip_g.")!=std::string::npos||n.find("cond_stage_model.model.")==0||n.find("open_clip.")==0;
+  clip|=n.find("cond_stage_model.transformer.text_model.")==0||n.find("cond_stage_model.transformer.text_model.embeddings.")==0||n.find("text_encoder.")==0||n.find("clip_l.")==0||n.find("conditioner.embedders.0.")==0;
+  openclip|=n.find("conditioner.embedders.1.")==0||n.find("text_encoder_2.")==0||n.find("clip_g.")==0||n.find("cond_stage_model.model.")==0||n.find("open_clip.")==0;
   t5|=n.find("text_encoder_3.")==0||n.find("t5xxl.")!=std::string::npos||n.find("t5.")!=std::string::npos;
  }
  d.components={legacyUnet||modernUnet,vae,clip,openclip,t5,sd3||sd35||flux};
