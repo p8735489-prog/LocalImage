@@ -92,6 +92,19 @@ jobs:
           "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++" --version
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
 
+      - name: Install Vulkan/SPIRV headers for stable-diffusion.cpp
+        shell: bash
+        run: |
+          set -euo pipefail
+          # stable-diffusion.cpp's ggml-vulkan backend runs
+          # find_package(SPIRV-Headers CONFIG) at CMake configure time. The
+          # Android NDK's CMake toolchain file re-roots find_package() into the
+          # NDK sysroot only, so even with the package installed on the runner
+          # it stays invisible unless CMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH is
+          # passed (done below via app/build.gradle.kts's cmake arguments).
+          sudo apt-get update
+          sudo apt-get install -y spirv-headers libvulkan-dev
+
       - name: Build debug APK
         run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
 

@@ -19,6 +19,12 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags += listOf("-std=c++20", "-fno-exceptions", "-fno-rtti")
+                // ggml-vulkan (pulled in by stable-diffusion.cpp) calls
+                // find_package(SPIRV-Headers CONFIG). The NDK's CMake toolchain
+                // file re-roots find_package() into the NDK sysroot by default,
+                // which hides host-installed packages like apt's spirv-headers.
+                // BOTH tells CMake to search the host paths too.
+                arguments += listOf("-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH")
             }
         }
     }
