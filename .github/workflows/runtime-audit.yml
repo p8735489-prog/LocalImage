@@ -11,18 +11,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Verify generation JNI boundary
         shell: bash
         run: |
           set -euo pipefail
-          # The UI must not silently claim that an image was generated.
-          grep -q 'current工程的生成图链路尚未接通' app/src/main/java/com/haobai/localimage/MainActivity.kt
-          # Until a real generation entry point exists, model runtimes must fail closed.
-          grep -q 'SDXL generation cannot proceed' app/src/main/cpp/sdxl/sdxl_runtime.cpp
-          # Keep a clear distinction between model inspection and inference.
-          grep -q 'nativeGetModelArchitecture' app/src/main/cpp/native_runtime.cpp
-          if grep -q 'Java_com_haobai_localimage_NativeRuntime_nativeGenerate' app/src/main/cpp/native_runtime.cpp; then
-            echo "Generation JNI entry point detected."
-          else
-            echo "INFO: generation JNI entry point is not implemented yet; build remains inspection/runtime-safe."
+
+          # Generation is now a real JNI boundary. The audit must fail if the
+          # Kotlin declaration and native implementation disappear.
+          grep -q 'nativeGenerate' app/src/main/java/com/haobai/localimage/NativeRuntime.kt
+          grep -q 'Java_com_haobai_localimage_NativeRuntime_nativeGenerate' app/src/main/cpp/sdcpp_bridge.cpp
+
+          # The native bridge must call the real stable-diffusion.cpp pipeline,
+          # not a placeholder or synthetic image path.
+          grep -q 'new_sd_ctx' app/src/main/cpp/sdcpp_bridge.cpp
+          grep -q 'generate_image' app/src/main/cpp/sdcpp_bridge.cpp
+          grep -q 'free_sd_images' app/src/main/cpp/sdcpp_bridge.cpp
+          grep -q 'free_sd_ctx' app/src/main/cpp/sdcpp_bridge.cpp
+
+          echo "✓ Real generation JNI boundary verified"
+
+      - name: Reject fake native generation implementations
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RniE 'fake[[:space:]_]*image|placeholder[[:space:]_]*image|dummy[[:space:]_]*image|synthetic[[:space:]_]*image' app/src/main/cpp; then
+            echo "Fake/placeholder image generation marker detected."
+            exit 1
           fi
+          echo "✓ No fake image-generation markers found"
+
+      - name: Verify required build files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f app/src/main/cpp/CMakeLists.txt
+          test -f app/src/main/cpp/sdcpp_bridge.cpp
+          test -f app/src/main/java/com/haobai/localimage/NativeRuntime.kt
+          test -f app/src/main/java/com/haobai/localimage/MainActivity.kt
+          echo "✓ Runtime audit passed"

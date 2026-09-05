@@ -40,13 +40,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null
+
+          # Do not use `yes | sdkmanager --licenses` without guarding the
+          # producer. sdkmanager can exit after accepting all licenses, which
+          # makes `yes` receive SIGPIPE and return exit code 1 (Broken pipe).
+          # With pipefail enabled that incorrectly fails the entire CI job.
+          set +o pipefail
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          set -o pipefail
+
           sdkmanager --install \
             "platform-tools" \
             "platforms;android-36" \
             "build-tools;36.0.0" \
             "ndk;29.0.14206865" \
             "cmake;3.22.1"
+
+          echo "=== Android toolchain ==="
+          sdkmanager --list_installed | grep -E 'platform-tools|platforms;android-36|build-tools;36.0.0|ndk;29.0.14206865|cmake;3.22.1' || true
 
       - name: Make gradlew executable
         run: chmod +x gradlew
@@ -72,6 +83,14 @@ jobs:
           test -f app/src/main/cpp/npu/qnn/qnn_graph_executor.cpp
           test -f app/src/main/java/com/haobai/localimage/MainActivity.kt
           echo "✓ Project structure verified"
+
+      - name: CMake configure preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --version
+          "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++" --version
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
 
       - name: Build debug APK
         run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
