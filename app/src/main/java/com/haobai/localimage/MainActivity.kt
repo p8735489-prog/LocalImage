@@ -75,7 +75,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -291,8 +291,18 @@ private fun LocalImageApp() {
                 cacheKey = NativeRuntime.nativeGetCacheKey(handle)
                 architectureInfo = NativeRuntime.nativeGetModelArchitecture(handle)
                 val detected = ModelArchitecture.fromId(architectureInfo.substringBefore('|').toIntOrNull() ?: 7)
+                aspect = AspectRatio.SQUARE
+                custom = false
                 customWidth = detected.recommendedWidth.toString()
                 customHeight = detected.recommendedHeight.toString()
+                // Different architectures require different schedulers (e.g. FLUX/SD3/SD35/Anima
+                // are flow-match only) — reset to a value valid for the newly loaded model so a
+                // stale scheduler from a previously loaded model can't be sent to nativeGenerate.
+                scheduler = when (detected) {
+                    ModelArchitecture.SD3, ModelArchitecture.SD35,
+                    ModelArchitecture.FLUX, ModelArchitecture.ANIMA -> "FlowMatch"
+                    else -> "Euler"
+                }
                 resolutionInfo = resolveResolution(context, detected, detected.recommendedWidth, detected.recommendedHeight, fileSize)
                 status = "✓ 模型已加载；生成前会执行 Runtime 能力检查"
                 page = 0
@@ -394,9 +404,8 @@ private fun LocalImageApp() {
                                             customWidth.toIntOrNull() to customHeight.toIntOrNull()
                                         } else {
                                             val baseW = architecture.recommendedWidth
-                                            val baseH = architecture.recommendedHeight
-                                            val rw = baseW * aspect.w / aspect.w
-                                            val rh = baseH * aspect.h / aspect.w
+                                            val rw = baseW
+                                            val rh = baseW * aspect.h / aspect.w
                                             rw to rh
                                         }
                                         if (w == null || h == null || w < 64 || h < 64) {
@@ -441,8 +450,8 @@ private fun LocalImageApp() {
                         },
                         onValidate = {
                             if (handle != 0L) try {
-                                NativeRuntime.nativeValidateModel(handle)
-                                status = "✓ 模型验证通过"
+                                val valid = NativeRuntime.nativeValidateModel(handle)
+                                status = if (valid) "✓ 模型验证通过" else "✕ 模型验证未通过"
                             } catch (t: Throwable) { status = "✕ ${t.message}" }
                         },
                         onClose = { closeModel() }
@@ -508,7 +517,7 @@ private fun LocalImageApp() {
                 onDismiss = { advanced = false },
                 onResolve = {
                     val (w, h) = if (custom) customWidth.toIntOrNull() to customHeight.toIntOrNull()
-                    else aspect.w * architecture.recommendedWidth / aspect.w to aspect.h * architecture.recommendedHeight / aspect.w
+                    else architecture.recommendedWidth to (architecture.recommendedWidth * aspect.h / aspect.w)
                     if (w != null && h != null && w > 0 && h > 0) {
                         resolutionInfo = resolveResolution(context, architecture, w, h, fileSize)
                     }
@@ -533,6 +542,7 @@ private fun LocalImageApp() {
 // Generation Page
 // ============================================================
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GenerationPage(
     tab: Int, onTab: (Int) -> Unit,
@@ -556,10 +566,13 @@ private fun GenerationPage(
     ) {
         Spacer(Modifier.height(4.dp))
 
-        TabRow(
+        // PrimaryTabRow (not the deprecated TabRow) because TabRowDefaults.PrimaryIndicator
+        // is a TabIndicatorScope extension — it does not compile inside TabRow's plain
+        // `(tabPositions: List<TabPosition>) -> Unit` indicator lambda.
+        PrimaryTabRow(
             selectedTabIndex = tab,
             containerColor = Color.Transparent,
-            indicator = { tabPositions ->
+            indicator = {
                 TabRowDefaults.PrimaryIndicator(
                     modifier = Modifier
                         .width(48.dp)

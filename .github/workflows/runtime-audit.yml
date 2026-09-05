@@ -19,7 +19,9 @@ jobs:
 
           # Generation is now a real JNI boundary. The audit must fail if the
           # Kotlin declaration and native implementation disappear.
-          grep -q 'nativeGenerate' app/src/main/java/com/haobai/localimage/NativeRuntime.kt
+          # NOTE: the NativeRuntime object currently lives inside MainActivity.kt
+          # rather than its own file — check that file until it is split out.
+          grep -q 'external fun nativeGenerate' app/src/main/java/com/haobai/localimage/MainActivity.kt
           grep -q 'Java_com_haobai_localimage_NativeRuntime_nativeGenerate' app/src/main/cpp/sdcpp_bridge.cpp
 
           # The native bridge must call the real stable-diffusion.cpp pipeline,
@@ -47,6 +49,5 @@ jobs:
           set -euo pipefail
           test -f app/src/main/cpp/CMakeLists.txt
           test -f app/src/main/cpp/sdcpp_bridge.cpp
-          test -f app/src/main/java/com/haobai/localimage/NativeRuntime.kt
           test -f app/src/main/java/com/haobai/localimage/MainActivity.kt
           echo "✓ Runtime audit passed"

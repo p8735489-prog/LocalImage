@@ -198,9 +198,9 @@ Java_com_haobai_localimage_NativeRuntime_nativeGetGenerationReadiness(JNIEnv* en
         detection.architecture == localimage::models::Architecture::StableDiffusion15 &&
         detection.components.unet && detection.components.vae && detection.components.clip;
 
-    // This is deliberately a capability gate, not a fake image generator.  The
-    // current tree has a real tensor/graph/Vulkan foundation, but it does not yet
-    // contain the complete SD1.x text-encoder -> UNet -> VAE pipeline.
+    // This is deliberately a capability gate rather than an image generator.
+    // The current tree has a real tensor/graph/Vulkan foundation, but it does
+    // not yet contain the complete SD1.x text-encoder -> UNet -> VAE pipeline.
     os << "generation=" << (complete ? "pipeline-not-yet-wired" : "blocked") << "\n";
     if (detection.architecture == localimage::models::Architecture::Unknown) {
         os << "reason=无法可靠识别模型架构，禁止进入生成链路";

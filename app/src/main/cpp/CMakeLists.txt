@@ -3,7 +3,7 @@ project(localimage_runtime LANGUAGES CXX)
 
 # Real image-generation backend: stable-diffusion.cpp.
 # It is fetched at configure time so the APK contains an actual SD inference
-# engine instead of a placeholder generator. The upstream project supports
+# engine rather than a stub generator. The upstream project supports
 # SafeTensors/SD1.x and Android, with Vulkan as an optional backend.
 include(FetchContent)
 set(SD_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
